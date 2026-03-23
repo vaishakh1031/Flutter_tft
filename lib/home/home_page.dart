@@ -412,7 +412,8 @@ class _DashboardView extends StatelessWidget {
 
             /// SPEED (Locked Fixed-Width Box)
             SizedBox(
-              width: 380,
+              // Expanded width to accommodate the wider individual digit boxes
+              width: 420,
               height: 180, 
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -449,7 +450,8 @@ class _DashboardView extends StatelessWidget {
   // Helper widget to lock a single digit into a specific width
   Widget _singleDigitBox(String digit) {
     return SizedBox(
-      width: 120, // Forces every digit, even a '1', to take up exactly 120 pixels
+      // Increased width from 120 to 135 to give the characters more breathing room
+      width: 135, 
       child: Center(
         child: _metallicText(
           digit,
