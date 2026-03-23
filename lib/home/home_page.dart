@@ -79,24 +79,13 @@ class _HomePageState extends State<HomePage> {
     }
     if (byteStart < 0 || byteStart >= parts.length) return;
 
-    // 1. Get the raw value from the CAN bus
     final rawValue = int.tryParse(parts[byteStart], radix: 16);
     if (rawValue != null && mounted) {
+      // FIX: Your hardware is already sending a 0-199 value!
+      // We just take the raw value, clamp it to 199 to be safe, and pass it in.
+      double finalSpeed = rawValue.toDouble().clamp(0.0, 199.0);
       
-      // --- POTENTIOMETER CALIBRATION ---
-      // If the speed still maxes out before the knob is fully rotated, 
-      // increase this number (e.g., to 1023.0 or 4095.0).
-      const double maxRawSensorValue = 255.0; 
-      const double maxDisplaySpeed = 199.0;
-
-      // 2. Map the raw sensor rotation to the 0 - 199 display limit
-      double scaledSpeed = (rawValue / maxRawSensorValue) * maxDisplaySpeed;
-
-      // 3. Clamp the speed just to be completely safe
-      scaledSpeed = scaledSpeed.clamp(0.0, maxDisplaySpeed);
-
-      // Pass the scaled value to our smoothing function
-      _updateSpeed(scaledSpeed);
+      _updateSpeed(finalSpeed);
     }
   }
 
@@ -125,7 +114,7 @@ class _HomePageState extends State<HomePage> {
                 height: designSize.height,
                 child: _DashboardView(
                   gear: 6,
-                  speed: displayedSpeed, // Pass the stable integer here
+                  speed: displayedSpeed, 
                   rideKm: 3.6,
                   odoKm: 2495.2,
                   rangeKm: 137,
@@ -136,7 +125,6 @@ class _HomePageState extends State<HomePage> {
                   regenLabel: 'REGEN',
                   timeText: timeText,
                   currentSpeed: currentSpeed, 
-                  // Kept for signature compatibility, though not triggered by UI anymore
                   onSpeedChanged: (v) => _updateSpeed(v, instant: true),
                 ),
               ),
@@ -425,13 +413,11 @@ class _DashboardView extends StatelessWidget {
             /// SPEED (Locked Fixed-Width Box)
             SizedBox(
               width: 380,
-              // Fixed height stops the text from jumping up and down
               height: 180, 
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Each digit gets its own exact-width box
                   _singleDigitBox(digit1),
                   _singleDigitBox(digit2),
                   _singleDigitBox(digit3),
@@ -501,15 +487,14 @@ class _DashboardView extends StatelessWidget {
         blendMode: BlendMode.srcIn,
         child: Text(
           text,
-          // Remove baseline alignment issues by setting text height to exactly 1.0
           style: TextStyle(
             fontFamily: 'Orbitron',
             color: Colors.white,
             fontSize: fontSize,
             fontWeight: fontWeight,
             fontStyle: FontStyle.italic,
-            letterSpacing: 0, // Removed letter spacing as digits are now in separate boxes
-            height: 1.0,      // Crucial: locks the vertical bounding box
+            letterSpacing: 0, 
+            height: 1.0,      
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -627,7 +612,6 @@ class _DashboardView extends StatelessWidget {
     );
   }
 
-  // Touch controls completely removed; bar only responds to hardware/CAN speed
   Widget _redPowerBar() {
     return Positioned(
       left: 65,
@@ -646,7 +630,6 @@ class _DashboardView extends StatelessWidget {
               
               final filledW = w * normalized;
 
-              // Removed GestureDetector and setFromDx
               return Stack(
                 children: [
                   // Inactive (right side)
