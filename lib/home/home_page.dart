@@ -373,7 +373,13 @@ class _DashboardView extends StatelessWidget {
   }
 
   Widget _speedCluster() {
+    // Pad to exactly 3 characters so we always have hundreds, tens, and units
     final speedText = speed.toString().padLeft(3, '0');
+    
+    // Extract individual digits
+    final digit1 = speedText[0];
+    final digit2 = speedText[1];
+    final digit3 = speedText[2];
 
     return Positioned(
       left: 110,
@@ -402,19 +408,20 @@ class _DashboardView extends StatelessWidget {
             ),
             const SizedBox(width: 18),
 
-            /// SPEED
-            // FIX: Placed inside a fixed-width SizedBox so the Row never changes width.
-            // This locks the Gear and KM/H text completely in place.
+            /// SPEED (Locked Fixed-Width Box)
             SizedBox(
-              width: 380, 
-              child: Align(
-                alignment: Alignment.center,
-                child: _metallicText(
-                  speedText,
-                  fontSize: 170,
-                  fontWeight: FontWeight.w600,
-                  skew: -0.15,
-                ),
+              width: 380,
+              // Fixed height stops the text from jumping up and down
+              height: 180, 
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Each digit gets its own exact-width box
+                  _singleDigitBox(digit1),
+                  _singleDigitBox(digit2),
+                  _singleDigitBox(digit3),
+                ],
               ),
             ),
 
@@ -434,6 +441,21 @@ class _DashboardView extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // Helper widget to lock a single digit into a specific width
+  Widget _singleDigitBox(String digit) {
+    return SizedBox(
+      width: 120, // Forces every digit, even a '1', to take up exactly 120 pixels
+      child: Center(
+        child: _metallicText(
+          digit,
+          fontSize: 170,
+          fontWeight: FontWeight.w600,
+          skew: -0.15,
         ),
       ),
     );
@@ -465,15 +487,15 @@ class _DashboardView extends StatelessWidget {
         blendMode: BlendMode.srcIn,
         child: Text(
           text,
+          // Remove baseline alignment issues by setting text height to exactly 1.0
           style: TextStyle(
             fontFamily: 'Orbitron',
             color: Colors.white,
             fontSize: fontSize,
             fontWeight: fontWeight,
             fontStyle: FontStyle.italic,
-            letterSpacing: 3,
-            height: 0.9,
-            // Forces the font to use tabular (monospaced) numerals to prevent shrinking
+            letterSpacing: 0, // Removed letter spacing as digits are now in separate boxes
+            height: 1.0,      // Crucial: locks the vertical bounding box
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
