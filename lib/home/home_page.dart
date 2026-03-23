@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui'; // NEW: Required for FontFeature to prevent text shrinking
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -19,7 +20,8 @@ class _HomePageState extends State<HomePage> {
   late DateTime _now;
   Timer? _timer;
 
-  double currentSpeed = 0;
+  double currentSpeed = 0; // The fluid, smoothed value for the red bar
+  int displayedSpeed = 0;  // The stable, integer value for the text display
 
   Process? _candump;
   StreamSubscription? _canSub;
@@ -46,6 +48,24 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
+  // NEW: Unified speed update logic with smoothing and hysteresis
+  void _updateSpeed(double newRawSpeed, {bool instant = false}) {
+    setState(() {
+      if (instant) {
+        currentSpeed = newRawSpeed;
+        displayedSpeed = currentSpeed.round();
+      } else {
+        // Low-Pass Filter
+        currentSpeed = currentSpeed + 0.15 * (newRawSpeed - currentSpeed);
+
+        // Hysteresis Deadband
+        if ((currentSpeed - displayedSpeed).abs() > 0.8) {
+          displayedSpeed = currentSpeed.round();
+        }
+      }
+    });
+  }
+
   void _onCanLine(String line) {
     // Format: "  can1  123   [8]  00 C0 23 91 4C B4 18 35"
     final parts = line.trim().split(RegExp(r'\s+'));
@@ -58,9 +78,11 @@ class _HomePageState extends State<HomePage> {
       }
     }
     if (byteStart < 0 || byteStart >= parts.length) return;
+    
     final speed = int.tryParse(parts[byteStart], radix: 16);
     if (speed != null && mounted) {
-      setState(() => currentSpeed = speed.toDouble());
+      // Pass the raw value to our new smoothing function
+      _updateSpeed(speed.toDouble());
     }
   }
 
@@ -81,8 +103,6 @@ class _HomePageState extends State<HomePage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           const designSize = Size(1024, 600);
-          // Layout the dashboard at a fixed "design size" then scale it to fit.
-          // This avoids overflows when the app runs in smaller windows/tests.
           return Center(
             child: FittedBox(
               fit: BoxFit.contain,
@@ -91,7 +111,7 @@ class _HomePageState extends State<HomePage> {
                 height: designSize.height,
                 child: _DashboardView(
                   gear: 6,
-                  speed: currentSpeed.round(),
+                  speed: displayedSpeed, // UPDATED: Pass the stable integer here
                   rideKm: 3.6,
                   odoKm: 2495.2,
                   rangeKm: 137,
@@ -101,8 +121,9 @@ class _HomePageState extends State<HomePage> {
                   modeLabel: 'ATTACK',
                   regenLabel: 'REGEN',
                   timeText: timeText,
-                  currentSpeed: currentSpeed,
-                  onSpeedChanged: (v) => setState(() => currentSpeed = v),
+                  currentSpeed: currentSpeed, // Keeps the red bar fluid
+                  // UPDATED: Use instant=true for touch dragging
+                  onSpeedChanged: (v) => _updateSpeed(v, instant: true),
                 ),
               ),
             ),
@@ -156,7 +177,6 @@ class _DashboardView extends StatelessWidget {
   static const _attackRed = Color(0xFFB30000);
   static const _accentBlue = Color(0xFF006DFF);
 
-
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -174,7 +194,6 @@ class _DashboardView extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _background() {
     return Positioned.fill(
@@ -300,7 +319,6 @@ class _DashboardView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
           _railGlyph(
             child: SvgPicture.asset(
               "assets/icons/1.svg",
@@ -308,9 +326,7 @@ class _DashboardView extends StatelessWidget {
               colorFilter: ColorFilter.mode(_accentBlue, BlendMode.srcIn),
             ),
           ),
-
           const SizedBox(height: 4),
-
           _railGlyph(
             child: SvgPicture.asset(
               "assets/icons/2.svg",
@@ -321,9 +337,7 @@ class _DashboardView extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 4),
-
           _railGlyph(
             child: SvgPicture.asset(
               "assets/icons/3.svg",
@@ -334,9 +348,7 @@ class _DashboardView extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 2),
-
           _railGlyph(
             child: SvgPicture.asset(
               "assets/icons/4.svg",
@@ -352,7 +364,6 @@ class _DashboardView extends StatelessWidget {
     );
   }
 
-
   Widget _railGlyph({required Widget child}) {
     return SizedBox(
       width: 60,
@@ -365,9 +376,9 @@ class _DashboardView extends StatelessWidget {
     final speedText = speed.toString().padLeft(3, '0');
 
     return Positioned(
-      left: 110,     // shift right slightly
-      right: 210,    // allow more space for speed digits
-      top: 180,      // lower slightly
+      left: 110,
+      right: 210,
+      top: 180,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.center,
@@ -375,7 +386,6 @@ class _DashboardView extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-
             /// GEAR
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -384,25 +394,24 @@ class _DashboardView extends StatelessWidget {
                 style: const TextStyle(
                   fontFamily: 'Orbitron',
                   color: Color(0xFF8C0000),
-                  fontSize: 75,   // reduced from 98
+                  fontSize: 75,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-
             const SizedBox(width: 18),
-
+            
             /// SPEED
             _metallicText(
               speedText,
-              fontSize: 170,     // reduced from 210
+              fontSize: 170,
               fontWeight: FontWeight.w600,
               skew: -0.15,
             ),
-
+            
             const SizedBox(width: 8),
-
+            
             /// KM/H
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -410,7 +419,7 @@ class _DashboardView extends StatelessWidget {
                 'KM/H',
                 style: TextStyle(
                   color: _panelText.withValues(alpha: 0.9),
-                  fontSize: 22,   // slightly smaller
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.4,
                 ),
@@ -456,6 +465,8 @@ class _DashboardView extends StatelessWidget {
             fontStyle: FontStyle.italic,
             letterSpacing: 3,
             height: 0.9,
+            // NEW: This forces the font to use tabular (monospaced) numerals
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ),
@@ -464,12 +475,11 @@ class _DashboardView extends StatelessWidget {
 
   Widget _rightPanel() {
     return Positioned(
-      right: 35,   // move slightly closer to screen edge
-      top: 170,     // lower slightly so it aligns with speed digits
+      right: 35,
+      top: 170,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// RANGE BAR
           ClipPath(
             clipper: _RangeBarClipper(),
@@ -496,14 +506,11 @@ class _DashboardView extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(width: 12),
-
           /// RANGE + BATTERY PANEL
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               /// RANGE LABEL
               Text(
                 "RANGE",
@@ -514,26 +521,21 @@ class _DashboardView extends StatelessWidget {
                   letterSpacing: 1.5,
                 ),
               ),
-
               const SizedBox(height: 4),
-
               /// RANGE VALUE
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-
                   Text(
                     "$rangeKm",
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 64,   // reduced from 78
+                      fontSize: 64,
                       fontWeight: FontWeight.w800,
                       height: 1,
                     ),
                   ),
-
                   const SizedBox(width: 6),
-
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
@@ -547,9 +549,7 @@ class _DashboardView extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
               /// BATTERY LABEL
               Text(
                 "BATTERY",
@@ -560,9 +560,7 @@ class _DashboardView extends StatelessWidget {
                   letterSpacing: 1.5,
                 ),
               ),
-
               const SizedBox(height: 4),
-
               /// BATTERY VALUE
               Row(
                 children: [
@@ -613,7 +611,7 @@ class _DashboardView extends StatelessWidget {
                 onTapDown: (d) => setFromDx(d.localPosition.dx),
                 child: Stack(
                   children: [
-                    // Inactive (right side): grey/black gradient.
+                    // Inactive (right side)
                     Positioned.fill(
                       child: Container(
                         decoration: const BoxDecoration(
@@ -634,7 +632,7 @@ class _DashboardView extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Color(0x44FFFFFF), // subtle top highlight
+                              Color(0x44FFFFFF),
                               Color(0x00FFFFFF),
                             ],
                             stops: [0.0, 0.35],
@@ -642,8 +640,7 @@ class _DashboardView extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                    // Active (left side): red gradient up to current speed.
+                    // Active (left side)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 80),
                       curve: Curves.easeOut,
@@ -668,7 +665,7 @@ class _DashboardView extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Color(0x66FFFFFF), // top highlight
+                              Color(0x66FFFFFF),
                               Color(0x00FFFFFF),
                             ],
                             stops: [0.0, 0.3],
@@ -676,8 +673,7 @@ class _DashboardView extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                    // Knob indicator.
+                    // Knob indicator
                     Positioned(
                       left: (filledW - 6).clamp(0.0, w - 12),
                       top: 0,
@@ -705,17 +701,15 @@ class _DashboardView extends StatelessWidget {
     );
   }
 
-
   Widget _bottomBars() {
     return Positioned(
       left: 70,
       right: 20,
-      bottom: 80,   // lowered from 80 → prevents overlapping speed
+      bottom: 80,
       child: SizedBox(
-        height: 70,  // reduced from 96
+        height: 70,
         child: Stack(
           children: [
-
             /// SMALL REGEN PLATE
             Positioned(
               right: 195,
@@ -730,12 +724,12 @@ class _DashboardView extends StatelessWidget {
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        Color(0xFF0B0B0B),  // deep black start
-                        Color(0xFF2A2A2A),  // dark metallic grey
-                        Color(0xFF3F3F3F),  // transition grey
-                        Color(0xFF8C0000),  // red fade
-                        Color(0xFFFF1A1A),  // red highlight
-                        Color(0xFF8C0000),  // metallic grey tip
+                        Color(0xFF0B0B0B),
+                        Color(0xFF2A2A2A),
+                        Color(0xFF3F3F3F),
+                        Color(0xFF8C0000),
+                        Color(0xFFFF1A1A),
+                        Color(0xFF8C0000),
                       ],
                       stops: [0.0, 0.28, 0.45, 0.65, 0.82, 1.0],
                     ),
@@ -751,7 +745,6 @@ class _DashboardView extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-
                   /// EFF
                   Column(
                     mainAxisSize: MainAxisSize.min,
@@ -785,18 +778,13 @@ class _DashboardView extends StatelessWidget {
                       ),
                     ],
                   ),
-
                   const Spacer(),
-
                   /// ATTACK BUTTON
-
                   Padding(
                     padding: const EdgeInsets.only(bottom: 30),
                     child: _attackButton(modeLabel),
                   ),
-
                   const Spacer(),
-
                   /// REGEN
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -810,9 +798,7 @@ class _DashboardView extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 40),
-
                   /// WARNING ICON
                   const Padding(
                     padding: EdgeInsets.only(bottom: 4),
@@ -830,16 +816,17 @@ class _DashboardView extends StatelessWidget {
       ),
     );
   }
+
   Widget _attackButton(String label) {
     return ClipPath(
       clipper: const _AttackButtonClipper(),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), // smaller
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: const Color(0xFF0B0B0B),
           border: Border.all(
             color: _attackRed.withValues(alpha: 0.95),
-            width: 1.6, // slightly thinner border
+            width: 1.6,
           ),
           boxShadow: [
             BoxShadow(
@@ -851,7 +838,6 @@ class _DashboardView extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-
             Text(
               '<',
               style: TextStyle(
@@ -860,21 +846,17 @@ class _DashboardView extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-
             const SizedBox(width: 8),
-
             Text(
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 12, // reduced from 14
+                fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.1,
               ),
             ),
-
             const SizedBox(width: 8),
-
             Text(
               '>',
               style: TextStyle(
@@ -888,9 +870,10 @@ class _DashboardView extends StatelessWidget {
       ),
     );
   }
+
   Widget _slantedMarks() {
     return Transform.translate(
-        offset: const Offset(0, -8), // move upward (adjust if needed)
+        offset: const Offset(0, -8),
         child: SizedBox(
           width: 90,
           height: 24,
@@ -911,7 +894,7 @@ class _SlantedMarksPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final barWidth = size.width / 5;
     final gap = barWidth * 0.35;
-    final slant = barWidth * 0.45; // increased slant
+    final slant = barWidth * 0.45;
 
     for (int i = 0; i < 3; i++) {
       final x = i * (barWidth + gap);
@@ -923,7 +906,6 @@ class _SlantedMarksPainter extends CustomPainter {
         ..lineTo(x, size.height)
         ..close();
 
-      // white outline
       final outlinePaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.9)
         ..style = PaintingStyle.stroke
@@ -931,7 +913,6 @@ class _SlantedMarksPainter extends CustomPainter {
 
       canvas.drawPath(path, outlinePaint);
 
-      // fill color
       final fillPaint = Paint()
         ..color = color.withValues(alpha: 1.0 - (i * 0.3))
         ..style = PaintingStyle.fill;
@@ -955,19 +936,10 @@ class _HudTopStripClipper extends CustomClipper<Path> {
     final h = size.height;
 
     final path = Path();
-
-    // top-left cut
     path.moveTo(w * 0.10, 0);
-
-    // top-right cut
     path.lineTo(w * 0.92, 0);
-
-    // bottom-right cut
     path.lineTo(w * 0.82, h);
-
-    // bottom-left cut
     path.lineTo(w * 0.00, h);
-
     path.close();
     return path;
   }
@@ -975,8 +947,6 @@ class _HudTopStripClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
-
-
 
 class _HudPlateClipper extends CustomClipper<Path> {
   const _HudPlateClipper();
@@ -987,22 +957,11 @@ class _HudPlateClipper extends CustomClipper<Path> {
     final h = size.height;
 
     final path = Path();
-
-    // left slanted edge
     path.moveTo(30, 0);
-
-    // top edge
     path.lineTo(w, 0);
-
-    // angled right edge
     path.lineTo(w - 25, h);
-
-    // bottom edge
     path.lineTo(0, h);
-
-    // back to start
     path.close();
-
     return path;
   }
 
@@ -1013,26 +972,18 @@ class _HudPlateClipper extends CustomClipper<Path> {
 class _RangeBarClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-
     final w = size.width;
     final h = size.height;
 
     final path = Path();
-
     path.moveTo(0, h * 0.06);
     path.lineTo(w, 0);
-
     path.lineTo(w, h * 0.45);
-
-    /// middle notch
     path.lineTo(0, h * 0.55);
-
     path.lineTo(0, h * 0.94);
     path.lineTo(w, h);
-
     path.lineTo(w, h * 0.55);
     path.lineTo(0, h * 0.45);
-
     path.close();
 
     return path;
@@ -1051,12 +1002,10 @@ class _AttackButtonClipper extends CustomClipper<Path> {
     final h = size.height;
 
     final p = Path();
-
-    p.moveTo(w * 0.18, 0);  // top-left slant
-    p.lineTo(w, 0);         // top-right
-    p.lineTo(w * 0.82, h);  // bottom-right slant
-    p.lineTo(0, h);         // bottom-left
-
+    p.moveTo(w * 0.18, 0);
+    p.lineTo(w, 0);
+    p.lineTo(w * 0.82, h);
+    p.lineTo(0, h);
     p.close();
     return p;
   }
