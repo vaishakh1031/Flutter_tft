@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui'; // NEW: Required for FontFeature to prevent text shrinking
+import 'dart:ui'; // Required for FontFeature to prevent text shrinking
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -20,8 +20,8 @@ class _HomePageState extends State<HomePage> {
   late DateTime _now;
   Timer? _timer;
 
-  double currentSpeed = 0; // The fluid, smoothed value for the red bar
-  int displayedSpeed = 0;  // The stable, integer value for the text display
+  double currentSpeed = 0; // The fluid, smoothed value
+  int displayedSpeed = 0;  // The stable, integer value for the text and bar
 
   Process? _candump;
   StreamSubscription? _canSub;
@@ -48,7 +48,7 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  // NEW: Unified speed update logic with smoothing and hysteresis
+  // Unified speed update logic with smoothing and hysteresis
   void _updateSpeed(double newRawSpeed, {bool instant = false}) {
     setState(() {
       if (instant) {
@@ -78,7 +78,7 @@ class _HomePageState extends State<HomePage> {
       }
     }
     if (byteStart < 0 || byteStart >= parts.length) return;
-    
+
     final speed = int.tryParse(parts[byteStart], radix: 16);
     if (speed != null && mounted) {
       // Pass the raw value to our new smoothing function
@@ -111,7 +111,7 @@ class _HomePageState extends State<HomePage> {
                 height: designSize.height,
                 child: _DashboardView(
                   gear: 6,
-                  speed: displayedSpeed, // UPDATED: Pass the stable integer here
+                  speed: displayedSpeed, // Pass the stable integer here
                   rideKm: 3.6,
                   odoKm: 2495.2,
                   rangeKm: 137,
@@ -121,8 +121,8 @@ class _HomePageState extends State<HomePage> {
                   modeLabel: 'ATTACK',
                   regenLabel: 'REGEN',
                   timeText: timeText,
-                  currentSpeed: currentSpeed, // Keeps the red bar fluid
-                  // UPDATED: Use instant=true for touch dragging
+                  currentSpeed: currentSpeed, 
+                  // Use instant=true for touch dragging
                   onSpeedChanged: (v) => _updateSpeed(v, instant: true),
                 ),
               ),
@@ -401,7 +401,7 @@ class _DashboardView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 18),
-            
+
             /// SPEED
             _metallicText(
               speedText,
@@ -409,9 +409,9 @@ class _DashboardView extends StatelessWidget {
               fontWeight: FontWeight.w600,
               skew: -0.15,
             ),
-            
+
             const SizedBox(width: 8),
-            
+
             /// KM/H
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -465,7 +465,7 @@ class _DashboardView extends StatelessWidget {
             fontStyle: FontStyle.italic,
             letterSpacing: 3,
             height: 0.9,
-            // NEW: This forces the font to use tabular (monospaced) numerals
+            // Forces the font to use tabular (monospaced) numerals to prevent shrinking
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -583,6 +583,7 @@ class _DashboardView extends StatelessWidget {
     );
   }
 
+  // UPDATED: Red power bar max speed is now 199
   Widget _redPowerBar() {
     return Positioned(
       left: 65,
@@ -595,12 +596,15 @@ class _DashboardView extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final w = constraints.maxWidth;
-              final normalized = (currentSpeed / 160).clamp(0.0, 1.0);
+              
+              // FIX: Now capped at 199 instead of 160
+              final normalized = (speed / 199).clamp(0.0, 1.0); 
+              
               final filledW = w * normalized;
 
               void setFromDx(double dx) {
                 final n = (dx / w).clamp(0.0, 1.0);
-                final v = (n * 160).clamp(0.0, 160.0);
+                final v = (n * 199).clamp(0.0, 199.0); // Allow dragging up to 199
                 onSpeedChanged(v);
               }
 
