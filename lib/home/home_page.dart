@@ -79,10 +79,24 @@ class _HomePageState extends State<HomePage> {
     }
     if (byteStart < 0 || byteStart >= parts.length) return;
 
-    final speed = int.tryParse(parts[byteStart], radix: 16);
-    if (speed != null && mounted) {
-      // Pass the raw value to our new smoothing function
-      _updateSpeed(speed.toDouble());
+    // 1. Get the raw value from the CAN bus
+    final rawValue = int.tryParse(parts[byteStart], radix: 16);
+    if (rawValue != null && mounted) {
+      
+      // --- POTENTIOMETER CALIBRATION ---
+      // If the speed still maxes out before the knob is fully rotated, 
+      // increase this number (e.g., to 1023.0 or 4095.0).
+      const double maxRawSensorValue = 255.0; 
+      const double maxDisplaySpeed = 199.0;
+
+      // 2. Map the raw sensor rotation to the 0 - 199 display limit
+      double scaledSpeed = (rawValue / maxRawSensorValue) * maxDisplaySpeed;
+
+      // 3. Clamp the speed just to be completely safe
+      scaledSpeed = scaledSpeed.clamp(0.0, maxDisplaySpeed);
+
+      // Pass the scaled value to our smoothing function
+      _updateSpeed(scaledSpeed);
     }
   }
 
