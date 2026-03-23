@@ -81,7 +81,9 @@ class _HomePageState extends State<HomePage> {
 
     final rawValue = int.tryParse(parts[byteStart], radix: 16);
     if (rawValue != null && mounted) {
+      // The numerical speed text keeps going up to 199
       double finalSpeed = rawValue.toDouble().clamp(0.0, 199.0);
+      
       _updateSpeed(finalSpeed);
     }
   }
@@ -373,6 +375,7 @@ class _DashboardView extends StatelessWidget {
 
   Widget _speedCluster() {
     final speedText = speed.toString().padLeft(3, '0');
+    
     final digit1 = speedText[0];
     final digit2 = speedText[1];
     final digit3 = speedText[2];
@@ -609,8 +612,10 @@ class _DashboardView extends StatelessWidget {
             builder: (context, constraints) {
               final w = constraints.maxWidth;
               
-              // FIX: Scaled by 0.92 so the color fills exactly to the clipped edge at 199
-              final normalized = (speed / 199).clamp(0.0, 1.0) * 0.92; 
+              // FIX: Divisor changed to 169.
+              // The bar will hit its 100% visual max (0.92 of width) when speed is 169.
+              // Speeds > 169 will just clamp at 1.0.
+              final normalized = (speed / 169).clamp(0.0, 1.0) * 0.92; 
               
               final filledW = w * normalized;
 
